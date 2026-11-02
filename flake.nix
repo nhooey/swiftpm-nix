@@ -29,7 +29,7 @@
           {
             # The Composable Architecture as the test: 14 packages, swift-syntax
             # macros among them, built with the network cut off.
-            checks = lib.optionalAttrs pkgs.stdenv.isDarwin {
+            checks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
               composable-architecture = pkgs.callPackage ./tests/composable-architecture {
                 swiftpmDeps = config.flake.lib.fetchDeps pkgs {
                   resolved = ./tests/composable-architecture/Package.resolved;
