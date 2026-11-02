@@ -8,6 +8,16 @@
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
+
+    devshell = {
+      url = "github:numtide/devshell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -15,11 +25,17 @@
     flake-parts.lib.mkFlake { inherit inputs; } (
       { config, ... }:
       {
+        # Explicit, not nix-systems/default: nixpkgs-unstable no longer
+        # builds x86_64-darwin.
         systems = [
           "aarch64-darwin"
-          "x86_64-darwin"
           "aarch64-linux"
           "x86_64-linux"
+        ];
+
+        imports = [
+          inputs.devshell.flakeModule
+          inputs.treefmt-nix.flakeModule
         ];
 
         flake.lib = import ./lib { inherit (nixpkgs) lib; };
@@ -37,7 +53,33 @@
               };
             };
 
-            formatter = pkgs.nixfmt-rfc-style;
+            # `nix fmt` runs treefmt; its `treefmt` check verifies the tree.
+            treefmt = {
+              projectRootFile = "flake.nix";
+              programs.nixfmt.enable = true;
+            };
+
+            devshells.default = {
+              name = "swiftpm-nix";
+              packages = [
+                pkgs.swift
+                pkgs.swiftpm
+              ];
+              commands = [
+                {
+                  category = "check";
+                  name = "check-tca";
+                  help = "build The Composable Architecture test package in the sandbox";
+                  command = ''nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).composable-architecture" -L "$@"'';
+                }
+                {
+                  category = "format";
+                  name = "fmt";
+                  help = "format every Nix file with treefmt";
+                  command = ''nix fmt "$@"'';
+                }
+              ];
+            };
           };
       }
     );
