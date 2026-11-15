@@ -9,9 +9,16 @@
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
 
-    devshell = {
-      url = "github:numtide/devshell";
-      inputs.nixpkgs.follows = "nixpkgs";
+    # Brings numtide/devshell and the wiring that installs the dev shell's
+    # skills from the `skills-devshell/` sub-flake, invoked at runtime, so
+    # this flake carries no skill inputs.
+    agent-skill-flake = {
+      url = "github:nhooey/agent-skill-flake";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-parts.follows = "flake-parts";
+        treefmt-nix.follows = "treefmt-nix";
+      };
     };
 
     treefmt-nix = {
@@ -34,9 +41,15 @@
         ];
 
         imports = [
-          inputs.devshell.flakeModule
+          inputs.agent-skill-flake.flakeModules.devshellSkills
           inputs.treefmt-nix.flakeModule
         ];
+
+        agent-skill-flake.devshellSkills = {
+          name = "swiftpm-nix";
+          # This dev shell keeps its own `fmt` and has `nix flake check`.
+          includeStandardCommands = false;
+        };
 
         flake.lib = import ./lib { inherit (nixpkgs) lib; };
 
