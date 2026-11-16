@@ -32,8 +32,8 @@
     flake-parts.lib.mkFlake { inherit inputs; } (
       { config, ... }:
       {
-        # Explicit, not nix-systems/default: nixpkgs-unstable no longer
-        # builds x86_64-darwin.
+        # Explicit, not nix-systems/default, to leave out x86_64-darwin,
+        # which nixpkgs-unstable doesn't build.
         systems = [
           "aarch64-darwin"
           "aarch64-linux"
