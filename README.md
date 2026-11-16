@@ -17,7 +17,13 @@ Builds a Swift package's SwiftPM dependencies in the Nix sandbox, where `swift b
       in
       pkgs.stdenv.mkDerivation {
         # …
-        nativeBuildInputs = [ pkgs.swift pkgs.swiftpm swiftpmDeps ];
+        nativeBuildInputs = [
+          pkgs.swift
+          pkgs.swiftpm
+          pkgs.darwin.sigtool # SwiftPM signs debug binaries with `codesign`
+          swiftpmDeps
+        ];
+        buildInputs = [ pkgs.apple-sdk_15 ];
         buildPhase = ''
           swiftpmUseDeps "$TMPDIR/scratch"
           swift build --disable-sandbox --scratch-path "$TMPDIR/scratch"
@@ -31,6 +37,8 @@ Builds a Swift package's SwiftPM dependencies in the Nix sandbox, where `swift b
 
 `workspaceStateVersion` is the layout of SwiftPM's `workspace-state.json`; SwiftPM 6 writes 7.
 
+`swiftpm-nix.lib.pinsOf <Package.resolved>` returns the `remoteSourceControl` pins of a `Package.resolved`, the same list as `passthru.pins`.
+
 ## How pins are fetched
 
 - A `github.com` pin is fetched as a tarball with `builtins.fetchTree`, which is much faster than a clone.
@@ -42,4 +50,10 @@ Both are locked by the pin's revision, so they work in pure evaluation and need 
 
 ## Test
 
-`nix flake check` on macOS builds a one-reducer program on Point-Free's The Composable Architecture: 14 packages, swift-syntax's macros among them, in the sandbox, and checks that it runs.
+`nix flake check` on macOS builds a one-reducer program on Point-Free's The Composable Architecture: 14 packages, swift-syntax's macros among them, with every dependency from `fetchDeps`, and checks that it runs. On every system it also fails on any file `nix fmt` would change. Nix's sandbox is off by default on macOS; only with `sandbox = true` in `nix.conf` is the build cut off from the network.
+
+## Develop
+
+- `nix develop`: a shell with Swift and SwiftPM and the commands below.
+- `check-tca`: builds just the Composable Architecture check for the current system.
+- `fmt` (or `nix fmt`): formats every Nix file with treefmt.

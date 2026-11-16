@@ -57,7 +57,7 @@
           { pkgs, lib, ... }:
           {
             # The Composable Architecture as the test: 14 packages, swift-syntax
-            # macros among them, built with the network cut off.
+            # macros among them, built with only the dependencies from fetchDeps.
             checks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
               composable-architecture = pkgs.callPackage ./tests/composable-architecture {
                 swiftpmDeps = config.flake.lib.fetchDeps pkgs {
@@ -82,7 +82,7 @@
                 {
                   category = "check";
                   name = "check-tca";
-                  help = "build The Composable Architecture test package in the sandbox";
+                  help = "build The Composable Architecture test package";
                   command = ''nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).composable-architecture" -L "$@"'';
                 }
                 {
