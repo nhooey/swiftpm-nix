@@ -50,7 +50,11 @@ Both are locked by the pin's revision, so they work in pure evaluation and need 
 
 ## Test
 
-`nix flake check` on macOS builds a one-reducer program on Point-Free's The Composable Architecture: 14 packages, swift-syntax's macros among them, with every dependency from `fetchDeps`, and checks that it runs. On every system it also fails on any file `nix fmt` would change. Nix's sandbox is off by default on macOS; only with `sandbox = true` in `nix.conf` is the build cut off from the network.
+`nix flake check` runs three tests, and on every system also fails on any file `nix fmt` would change:
+
+- `unit`, on every system: evaluates the pure functions in `lib/pins.nix` against small `Package.resolved` fixtures in `tests/unit/fixtures/`, covering non-GitHub hosts, branch-only and revision-only pins, and the version 1 rejection.
+- `setup-hook`, on every system: runs `swiftpmUseDeps` without Swift and checks it leaves one writable checkout per pin and a writable `workspace-state.json`.
+- `composable-architecture`, on macOS: builds a one-reducer program on Point-Free's The Composable Architecture, 14 packages with swift-syntax's macros among them, with every dependency from `fetchDeps`, and checks that it runs. A stand-in `git` fails and records every clone or fetch, so the check fails if SwiftPM tries to fetch anything, whether Nix's sandbox is on or off.
 
 ## Develop
 
