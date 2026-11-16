@@ -55,9 +55,14 @@
 
         perSystem =
           { pkgs, lib, ... }:
+          let
+            # The test package's dependencies, which both the setup-hook and
+            # composable-architecture checks use.
+            tcaDeps = config.flake.lib.fetchDeps pkgs {
+              resolved = ./tests/composable-architecture/Package.resolved;
+            };
+          in
           {
-            # The Composable Architecture as the test: 14 packages, swift-syntax
-            # macros among them, built with only the dependencies from fetchDeps.
             checks = {
               # lib/pins.nix's unit tests, evaluated here; the build only
               # reports them, and fails if any differs from what it expects.
@@ -74,12 +79,15 @@
                       exit 1
                     ''
                 );
+
+              # The hook's layout, checked with no Swift build, on every system.
+              setup-hook = pkgs.callPackage ./tests/setup-hook { swiftpmDeps = tcaDeps; };
             }
             // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+              # The Composable Architecture as the test: 14 packages, swift-syntax
+              # macros among them, built with only the dependencies from fetchDeps.
               composable-architecture = pkgs.callPackage ./tests/composable-architecture {
-                swiftpmDeps = config.flake.lib.fetchDeps pkgs {
-                  resolved = ./tests/composable-architecture/Package.resolved;
-                };
+                swiftpmDeps = tcaDeps;
               };
             };
 
