@@ -58,7 +58,24 @@
           {
             # The Composable Architecture as the test: 14 packages, swift-syntax
             # macros among them, built with only the dependencies from fetchDeps.
-            checks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+            checks = {
+              # lib/pins.nix's unit tests, evaluated here; the build only
+              # reports them, and fails if any differs from what it expects.
+              unit =
+                let
+                  failures = import ./tests/unit { inherit lib; };
+                in
+                pkgs.runCommand "swiftpm-nix-unit" { } (
+                  if failures == [ ] then
+                    "touch $out"
+                  else
+                    ''
+                      echo ${lib.escapeShellArg (builtins.toJSON failures)} >&2
+                      exit 1
+                    ''
+                );
+            }
+            // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
               composable-architecture = pkgs.callPackage ./tests/composable-architecture {
                 swiftpmDeps = config.flake.lib.fetchDeps pkgs {
                   resolved = ./tests/composable-architecture/Package.resolved;
