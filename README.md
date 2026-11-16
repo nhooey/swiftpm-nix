@@ -50,14 +50,15 @@ Both are locked by the pin's revision, so they work in pure evaluation and need 
 
 ## Test
 
-`nix flake check` runs three tests, and on every system also fails on any file `nix fmt` would change:
+`nix flake check` runs four tests, and on every system also fails on any file `nix fmt` would change:
 
 - `unit`, on every system: evaluates the pure functions in `lib/pins.nix` against small `Package.resolved` fixtures in `tests/unit/fixtures/`, covering non-GitHub hosts, branch-only and revision-only pins, and the version 1 rejection.
 - `setup-hook`, on every system: runs `swiftpmUseDeps` without Swift and checks it leaves one writable checkout per pin and a writable `workspace-state.json`.
+- `tools`, on every system: unit-tests `tools/check.py`, the dev shell's `check` command, in `tests/tools/`.
 - `composable-architecture`, on macOS: builds a one-reducer program on Point-Free's The Composable Architecture, 14 packages with swift-syntax's macros among them, with every dependency from `fetchDeps`, and checks that it runs. A stand-in `git` fails and records every clone or fetch, so the check fails if SwiftPM tries to fetch anything, whether Nix's sandbox is on or off.
 
 ## Develop
 
 - `nix develop`: a shell with Swift and SwiftPM and the commands below.
-- `check-tca`: builds just the Composable Architecture check for the current system.
-- `fmt` (or `nix fmt`): formats every Nix file with treefmt.
+- `check`: lists the flake's checks for the current system (`check list`), builds chosen ones with their logs (`check build composable-architecture`) or runs them all (`check all`); `check --help` has the rest.
+- `fmt` (or `nix fmt`): formats every Nix and Python file with treefmt.

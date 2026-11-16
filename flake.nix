@@ -82,6 +82,24 @@
 
               # The hook's layout, checked with no Swift build, on every system.
               setup-hook = pkgs.callPackage ./tests/setup-hook { swiftpmDeps = tcaDeps; };
+
+              # tools/check.py's argument parsing and the nix commands it builds.
+              tools =
+                pkgs.runCommand "swiftpm-nix-tools"
+                  {
+                    nativeBuildInputs = [ pkgs.python3 ];
+                    src = lib.fileset.toSource {
+                      root = ./.;
+                      fileset = lib.fileset.unions [
+                        ./tools
+                        ./tests/tools
+                      ];
+                    };
+                  }
+                  ''
+                    python3 -I "$src/tests/tools/test_check.py"
+                    touch "$out"
+                  '';
             }
             // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
               # The Composable Architecture as the test: 14 packages, swift-syntax
@@ -95,6 +113,7 @@
             treefmt = {
               projectRootFile = "flake.nix";
               programs.nixfmt.enable = true;
+              programs.ruff-format.enable = true;
             };
 
             devshells.default = {
@@ -106,14 +125,14 @@
               commands = [
                 {
                   category = "check";
-                  name = "check-tca";
-                  help = "build The Composable Architecture test package";
-                  command = ''nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).composable-architecture" -L "$@"'';
+                  name = "check";
+                  help = "list, build or run the flake's checks (check --help)";
+                  command = ''${lib.getExe pkgs.python3} ${./tools/check.py} "$@"'';
                 }
                 {
                   category = "format";
                   name = "fmt";
-                  help = "format every Nix file with treefmt";
+                  help = "format every Nix and Python file with treefmt";
                   command = ''nix fmt "$@"'';
                 }
               ];
