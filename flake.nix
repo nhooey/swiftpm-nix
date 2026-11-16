@@ -9,9 +9,16 @@
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
 
-    devshell = {
-      url = "github:numtide/devshell";
-      inputs.nixpkgs.follows = "nixpkgs";
+    # Brings numtide/devshell and the wiring that installs the dev shell's
+    # skills from the `skills-devshell/` sub-flake, invoked at runtime, so
+    # this flake carries no skill inputs.
+    agent-skill-flake = {
+      url = "github:nhooey/agent-skill-flake";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-parts.follows = "flake-parts";
+        treefmt-nix.follows = "treefmt-nix";
+      };
     };
 
     treefmt-nix = {
@@ -25,8 +32,8 @@
     flake-parts.lib.mkFlake { inherit inputs; } (
       { config, ... }:
       {
-        # Explicit, not nix-systems/default: nixpkgs-unstable no longer
-        # builds x86_64-darwin.
+        # Explicit, not nix-systems/default, to leave out x86_64-darwin,
+        # which nixpkgs-unstable doesn't build.
         systems = [
           "aarch64-darwin"
           "aarch64-linux"
@@ -34,22 +41,71 @@
         ];
 
         imports = [
-          inputs.devshell.flakeModule
+          inputs.agent-skill-flake.flakeModules.devshellSkills
           inputs.treefmt-nix.flakeModule
         ];
+
+        agent-skill-flake.devshellSkills = {
+          name = "swiftpm-nix";
+          # This dev shell keeps its own `fmt` and has `nix flake check`.
+          includeStandardCommands = false;
+        };
 
         flake.lib = import ./lib { inherit (nixpkgs) lib; };
 
         perSystem =
           { pkgs, lib, ... }:
+          let
+            # The test package's dependencies, which both the setup-hook and
+            # composable-architecture checks use.
+            tcaDeps = config.flake.lib.fetchDeps pkgs {
+              resolved = ./tests/composable-architecture/Package.resolved;
+            };
+          in
           {
-            # The Composable Architecture as the test: 14 packages, swift-syntax
-            # macros among them, built with the network cut off.
-            checks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+            checks = {
+              # lib/pins.nix's unit tests, evaluated here; the build only
+              # reports them, and fails if any differs from what it expects.
+              unit =
+                let
+                  failures = import ./tests/unit { inherit lib; };
+                in
+                pkgs.runCommand "swiftpm-nix-unit" { } (
+                  if failures == [ ] then
+                    "touch $out"
+                  else
+                    ''
+                      echo ${lib.escapeShellArg (builtins.toJSON failures)} >&2
+                      exit 1
+                    ''
+                );
+
+              # The hook's layout, checked with no Swift build, on every system.
+              setup-hook = pkgs.callPackage ./tests/setup-hook { swiftpmDeps = tcaDeps; };
+
+              # tools/check.py's argument parsing and the nix commands it builds.
+              tools =
+                pkgs.runCommand "swiftpm-nix-tools"
+                  {
+                    nativeBuildInputs = [ pkgs.python3 ];
+                    src = lib.fileset.toSource {
+                      root = ./.;
+                      fileset = lib.fileset.unions [
+                        ./tools
+                        ./tests/tools
+                      ];
+                    };
+                  }
+                  ''
+                    python3 -I "$src/tests/tools/test_check.py"
+                    touch "$out"
+                  '';
+            }
+            // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+              # The Composable Architecture as the test: 14 packages, swift-syntax
+              # macros among them, built with only the dependencies from fetchDeps.
               composable-architecture = pkgs.callPackage ./tests/composable-architecture {
-                swiftpmDeps = config.flake.lib.fetchDeps pkgs {
-                  resolved = ./tests/composable-architecture/Package.resolved;
-                };
+                swiftpmDeps = tcaDeps;
               };
             };
 
@@ -57,6 +113,7 @@
             treefmt = {
               projectRootFile = "flake.nix";
               programs.nixfmt.enable = true;
+              programs.ruff-format.enable = true;
             };
 
             devshells.default = {
@@ -68,14 +125,14 @@
               commands = [
                 {
                   category = "check";
-                  name = "check-tca";
-                  help = "build The Composable Architecture test package in the sandbox";
-                  command = ''nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).composable-architecture" -L "$@"'';
+                  name = "check";
+                  help = "list, build or run the flake's checks (check --help)";
+                  command = ''${lib.getExe pkgs.python3} ${./tools/check.py} "$@"'';
                 }
                 {
                   category = "format";
                   name = "fmt";
-                  help = "format every Nix file with treefmt";
+                  help = "format every Nix and Python file with treefmt";
                   command = ''nix fmt "$@"'';
                 }
               ];
